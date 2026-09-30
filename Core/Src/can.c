@@ -56,10 +56,9 @@ void MX_CAN1_Init(void)
   }
   /* USER CODE BEGIN CAN1_Init 2 */
   CAN_FilterConfig1();
-    if (HAL_CAN_Start(&hcan1) != HAL_OK)
-    {
-      Error_Handler();
-    }
+  // Not fatal: Start times out if the bus is stuck dominant, and this runs before
+  // MX_IWDG_Init -> Error_Handler here would hang forever. can_watchdog() in main retries.
+  HAL_CAN_Start(&hcan1);
   /* USER CODE END CAN1_Init 2 */
 
 }

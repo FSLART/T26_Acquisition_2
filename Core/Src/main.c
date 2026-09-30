@@ -41,6 +41,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+// CAN fault must last this long before CAN1 is fully restarted (ABOM normally clears bus-off in a few ms)
+#define CAN_RECOVER_MS  200
+#define CAN_DEBUG_ITS   (CAN_IT_TX_MAILBOX_EMPTY | CAN_IT_ERROR_WARNING | CAN_IT_ERROR_PASSIVE | \
+                         CAN_IT_BUSOFF | CAN_IT_LAST_ERROR_CODE | CAN_IT_ERROR)
 
 /* USER CODE END PD */
 
@@ -71,6 +75,37 @@ typedef struct {
 // Instances for Wheel Sensors
 WheelSensor sensor_wheel_1 = {0, 0, 0.0f, 1, 0}; // Connected to PB0 (TIM3_CH3)
 WheelSensor sensor_wheel_2 = {0, 0, 0.0f, 1, 0}; // Connected to PB1 (TIM3_CH4)
+
+// --- DEBUG SNAPSHOT (add "debug" to Live Expressions) ---
+typedef struct {
+    uint32_t time_ms;
+    uint8_t  iwdg_reset;            // 1 = last reset was caused by the watchdog
+    struct {
+        float    rpm;
+        uint16_t delta_counts;
+        uint32_t last_pulse_ms;
+    } wheel[2];                     // [0] = sensor_wheel_1 (PB0), [1] = sensor_wheel_2 (PB1)
+    struct {
+        uint32_t tx_queued;         // HAL_CAN_AddTxMessage OK
+        uint32_t tx_queue_fail;     // HAL_CAN_AddTxMessage failed (no free mailbox / not started)
+        uint32_t tx_ok;             // frame ACKed on the bus
+        uint32_t err_count;         // HAL_CAN_ErrorCallback hits
+        uint32_t recover_count;     // CAN1 restarts done by can_watchdog()
+        uint32_t last_error;        // HAL_CAN_ERROR_* bits of the latest error (0x20 ACK, 0x08 stuff, 0x10 form,
+                                    // 0x40/0x80 bit rec/dom, 0x100 CRC, 0x04 bus-off, 0x1000 TX_TERR0...)
+        uint32_t error_flags;       // every HAL_CAN_ERROR_* bit seen since boot
+        uint8_t  tec;               // transmit error counter (>=128 passive, >255 bus-off)
+        uint8_t  rec;               // receive error counter
+        uint8_t  bus_off;
+        uint8_t  error_passive;
+        uint8_t  error_warning;
+        uint8_t  free_mailboxes;    // 0..3
+        uint8_t  state;             // HAL_CAN_StateTypeDef (2 = LISTENING = running)
+        uint8_t  last_tx[8];        // payload of the last queued frame
+    } can;
+} DebugData;
+
+volatile DebugData debug;
 
 // Tasks Prototypes
 void execute_immediate_tasks(void);
@@ -141,6 +176,18 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim) {
         }
     }
 }
+
+// CAN debug callbacks (need HAL_CAN_ActivateNotification in main)
+void HAL_CAN_TxMailbox0CompleteCallback(CAN_HandleTypeDef *hcan) { debug.can.tx_ok++; }
+void HAL_CAN_TxMailbox1CompleteCallback(CAN_HandleTypeDef *hcan) { debug.can.tx_ok++; }
+void HAL_CAN_TxMailbox2CompleteCallback(CAN_HandleTypeDef *hcan) { debug.can.tx_ok++; }
+
+void HAL_CAN_ErrorCallback(CAN_HandleTypeDef *hcan) {
+    debug.can.err_count++;
+    debug.can.last_error = hcan->ErrorCode;
+    debug.can.error_flags |= hcan->ErrorCode;
+    HAL_CAN_ResetError(hcan);
+}
 /* USER CODE END 0 */
 
 /**
@@ -184,6 +231,12 @@ int main(void)
   // Start Input Capture for both wheel speed sensors
   HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_3); // PB0
   HAL_TIM_IC_Start_IT(&htim3, TIM_CHANNEL_4); // PB1
+
+  // Debug: TX-complete + error interrupts feed debug.can
+  HAL_CAN_ActivateNotification(&hcan1, CAN_DEBUG_ITS);
+
+  debug.iwdg_reset = __HAL_RCC_GET_FLAG(RCC_FLAG_IWDGRST);
+  __HAL_RCC_CLEAR_RESET_FLAGS();
 
   /* USER CODE END 2 */
 
@@ -275,6 +328,55 @@ void execute_immediate_tasks() {
 
 }
 
+// Copy current state into the debug struct (ISR counters are updated in the callbacks)
+static void debug_update(void) {
+    debug.time_ms = time_ms;
+
+    debug.wheel[0].rpm           = sensor_wheel_1.rpm;
+    debug.wheel[0].delta_counts  = sensor_wheel_1.delta_counts;
+    debug.wheel[0].last_pulse_ms = sensor_wheel_1.last_pulse_ms;
+    debug.wheel[1].rpm           = sensor_wheel_2.rpm;
+    debug.wheel[1].delta_counts  = sensor_wheel_2.delta_counts;
+    debug.wheel[1].last_pulse_ms = sensor_wheel_2.last_pulse_ms;
+
+    uint32_t esr = hcan1.Instance->ESR;
+    debug.can.tec            = (esr & CAN_ESR_TEC) >> CAN_ESR_TEC_Pos;
+    debug.can.rec            = (esr & CAN_ESR_REC) >> CAN_ESR_REC_Pos;
+    debug.can.bus_off        = (esr & CAN_ESR_BOFF) != 0;
+    debug.can.error_passive  = (esr & CAN_ESR_EPVF) != 0;
+    debug.can.error_warning  = (esr & CAN_ESR_EWGF) != 0;
+    debug.can.free_mailboxes = HAL_CAN_GetTxMailboxesFreeLevel(&hcan1);
+    debug.can.state          = HAL_CAN_GetState(&hcan1);
+}
+
+// CAN1 watchdog: if the peripheral is not running (Start timed out), stays bus-off
+// (hardware ABOM didn't recover) or has all 3 TX mailboxes stuck for CAN_RECOVER_MS,
+// restart it from scratch. Keeps retrying every CAN_RECOVER_MS until healthy.
+static void can_watchdog(void) {
+    static uint32_t last_healthy_ms = 0;
+
+    uint8_t healthy = HAL_CAN_GetState(&hcan1) == HAL_CAN_STATE_LISTENING
+                   && !(hcan1.Instance->ESR & CAN_ESR_BOFF)
+                   && HAL_CAN_GetTxMailboxesFreeLevel(&hcan1) > 0;
+
+    if (healthy) {
+        last_healthy_ms = time_ms;
+        return;
+    }
+    if (time_ms - last_healthy_ms < CAN_RECOVER_MS) {
+        return;
+    }
+
+    HAL_CAN_DeInit(&hcan1);          // IRQs + clock off, HAL state -> RESET
+    __HAL_RCC_CAN1_FORCE_RESET();    // real peripheral reset: DeInit writes MCR_RESET with the clock already off
+    __HAL_RCC_CAN1_RELEASE_RESET();
+    MX_CAN1_Init();                  // init + filter + start (blocks <= ~30 ms, IWDG is 2 s)
+    HAL_CAN_ActivateNotification(&hcan1, CAN_DEBUG_ITS);
+
+    debug.can.recover_count++;
+    last_healthy_ms = time_ms;       // next attempt only after another CAN_RECOVER_MS
+}
+
 void execute_10ms_tasks() {
     HAL_IWDG_Refresh(&hiwdg);
 
@@ -286,6 +388,9 @@ void execute_10ms_tasks() {
     if (time_ms - sensor_wheel_2.last_pulse_ms > 300) {
         sensor_wheel_2.rpm = 0.0f;
     }
+
+    can_watchdog();
+    debug_update();
 }
 
 void execute_50ms_tasks() {
@@ -317,9 +422,12 @@ void execute_50ms_tasks() {
 
     memcpy(TxData, aqt2_buf, DATA_T26_AQT2_LENGTH);
 
-    // Send Message to CAN Bus
-    if (HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
-        Error_Handler();
+    // Send Message to CAN Bus (a failed queue is counted, not fatal)
+    if (HAL_CAN_AddTxMessage(&hcan1, &TxHeader, TxData, &TxMailbox) == HAL_OK) {
+        debug.can.tx_queued++;
+        memcpy((void *)debug.can.last_tx, TxData, sizeof(TxData));
+    } else {
+        debug.can.tx_queue_fail++;
     }
 
     /*if (HAL_CAN_AddTxMessage(&hcan2, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
