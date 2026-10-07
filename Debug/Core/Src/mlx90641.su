@@ -1,0 +1,7 @@
+../Core/Src/mlx90641.c:27:26:mlx_read	48	static,ignoring_inline_asm
+../Core/Src/mlx90641.c:38:26:mlx_write	40	static
+../Core/Src/mlx90641.c:52:13:bus_recover	40	static
+../Core/Src/mlx90641.c:80:26:mlx_init	16	static
+../Core/Src/mlx90641.c:89:16:sext	16	static
+../Core/Src/mlx90641.c:96:13:mlx_calc	312	static
+../Core/Src/mlx90641.c:169:6:mlx90641_task	32	static
