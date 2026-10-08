@@ -11,7 +11,7 @@
 #include <math.h>
 
 #define MLX_ADDR        (0x33 << 1)     // default 7-bit slave address 0x33 (HAL wants it shifted)
-#define MLX_RATE        3               // 0x800D bits 9:7: 2 = 2 Hz, 3 = 4 Hz, 4 = 8 Hz
+#define MLX_RATE        2               // 0x800D bits 9:7: 2 = 2 Hz, 3 = 4 Hz, 4 = 8 Hz (also the CAN send rate)
 #define MLX_RETRY_MS    100             // recover + re-init period while the sensor doesn't answer
 #define MLX_SCL_PORT    GPIOA
 #define MLX_SCL_PIN     GPIO_PIN_8
