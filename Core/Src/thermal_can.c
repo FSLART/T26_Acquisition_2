@@ -6,7 +6,7 @@
  * it wraps above 285 degC instead of saturating.
  *
  * Every new acquisition is frozen and its 24 blocks queued in ascending ID order,
- * always leaving one TX mailbox free for AQT2 0x720 (sent from the TIM7 interrupt).
+ * always leaving one TX mailbox free for AQT2 (sent from the TIM7 interrupt).
  */
 #include "thermal_can.h"
 #include "can.h"
@@ -37,7 +37,7 @@ void thermal_can_task(void) {
         CAN_TxHeaderTypeDef h = { .StdId = DATA_T26_AQT2_TEMPERATURES_1_FRAME_ID + block, .IDE = CAN_ID_STD,
                                   .RTR = CAN_RTR_DATA, .DLC = DATA_T26_AQT2_TEMPERATURES_1_LENGTH };
         uint32_t mailbox;
-        __disable_irq();                // the TIM7 interrupt queues 0x720 with the same (non-reentrant) HAL call
+        __disable_irq();                // the TIM7 interrupt queues AQT2 with the same (non-reentrant) HAL call
         HAL_StatusTypeDef status = HAL_CAN_AddTxMessage(&hcan1, &h, raw[block], &mailbox);
         __enable_irq();
         if (status != HAL_OK) {

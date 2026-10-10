@@ -72,9 +72,9 @@ typedef struct {
     uint8_t  wheel_speed_self_check;    // 1 = rpm calculation passed its boot test
     WheelSpeed wheel[2];            // copy of wheel_speed[]: [0] = PB0 front left, [1] = PB1 front right
     struct {
-        uint32_t tx_queued;         // 0x720 AQT2 frames queued (every 10 ms from the TIM7 interrupt)
-        uint32_t tx_queue_fail;     // 0x720 not queued (no free mailbox / CAN not running)
-        uint32_t wheel_frame_max_gap_ms;    // longest interval between two queued 0x720 frames (expected 10)
+        uint32_t tx_queued;         // AQT2 frames queued (every 10 ms from the TIM7 interrupt)
+        uint32_t tx_queue_fail;     // AQT2 not queued (no free mailbox / CAN not running)
+        uint32_t wheel_frame_max_gap_ms;    // longest interval between two queued AQT2 frames (expected 10)
         uint32_t tx_ok;             // frame ACKed on the bus
         uint32_t err_count;         // HAL_CAN_ErrorCallback hits
         uint32_t recover_count;     // CAN1 restarts done by can_watchdog()
@@ -88,7 +88,7 @@ typedef struct {
         uint8_t  error_warning;
         uint8_t  free_mailboxes;    // 0..3
         uint8_t  state;             // HAL_CAN_StateTypeDef (2 = LISTENING = running)
-        uint8_t  last_tx[8];        // payload of the last queued 0x720 frame
+        uint8_t  last_tx[8];        // payload of the last queued AQT2 frame
     } can;
     MLX90641 mlx;                   // IR array on I2C3, copy of mlx90641 (see mlx90641.h)
 } DebugData;
@@ -116,7 +116,7 @@ int _write(int file, char *data, int len) {
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// AQT2 (0x720, front wheel rpm, raw = rpm). Sent every 10 ms from the TIM7 interrupt, so nothing in
+// AQT2 (front wheel rpm, raw = rpm). Sent every 10 ms from the TIM7 interrupt, so nothing in
 // the main loop can delay it. thermal_can.c leaves one TX mailbox free and queues under a critical section.
 static void send_wheel_speed_frame(void) {
     static uint32_t last_queued_ms;
@@ -220,7 +220,7 @@ int main(void)
   MX_I2C3_Init();
   /* USER CODE BEGIN 2 */
   aqt2.wheel_speed_self_check = wheel_speed_self_check();
-  HAL_TIM_Base_Start_IT(&htim7);    // 1 ms tick + 0x720 every 10 ms
+  HAL_TIM_Base_Start_IT(&htim7);    // 1 ms tick + AQT2 every 10 ms
   wheel_speed_start();              // input capture on PB0/PB1
 
   // Debug: TX-complete + error interrupts feed aqt2.can
@@ -377,7 +377,7 @@ void execute_10ms_tasks() {
 }
 
 void execute_50ms_tasks() {
-    // 0x720 AQT2 moved to the TIM7 interrupt (send_wheel_speed_frame)
+    // AQT2 moved to the TIM7 interrupt (send_wheel_speed_frame)
 }
 
 void execute_100ms_tasks() {

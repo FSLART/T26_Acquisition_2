@@ -7,8 +7,10 @@
  *   between two teeth and is ignored; a period at least twice the previous one is treated as a gap
  *   and the following normal tooth interval establishes a fresh reference.
  * - rpm is the mean of all teeth accepted since the last update (every 10 ms).
- * - Supports 5 RPM (600 ms per tooth with 20 teeth/revolution). It holds the last estimate and
- *   reports zero only after 2.5 minimum-speed tooth periods without a new edge (1.5 seconds).
+ * - With no new tooth, rpm can't be higher than one tooth per elapsed time, so it decays at once
+ *   on a sudden stop, a locked wheel or a lost signal (10 ms -> 300 rpm, 100 ms -> 30 rpm).
+ *   A steady 5 RPM (600 ms per tooth) is never cut: the bound only drops below 5 RPM after 600 ms.
+ * - Zero after 2.5 minimum-speed tooth periods without a new edge (1.5 seconds).
  *
  * Capture, overflow and update all run at the same interrupt priority (TIM3 and TIM7, both 0),
  * so they never preempt each other.
@@ -108,6 +110,13 @@ static void update_wheel(WheelSpeed *wheel, uint32_t now_us) {
         wheel->last_period_us = 0;
         wheel->window_period_sum_us = 0u;
         wheel->window_edge_count = 0u;
+        return;
+    }
+    if (since_edge) {                       // no tooth yet: at most one tooth per elapsed time
+        float ceiling = MICROSECONDS_PER_MINUTE / (TEETH_PER_REVOLUTION * (float)since_edge);
+        if (wheel->rpm > ceiling) {
+            wheel->rpm = ceiling;
+        }
     }
 }
 
@@ -150,6 +159,9 @@ uint8_t wheel_speed_self_check(void) {
     update_wheel(&wheel, t + 100);
     uint8_t ok = wheel.rpm > 1499.0f && wheel.rpm < 1501.0f && wheel.rejected_count == 2;
 
+    update_wheel(&wheel, t + 50000u);       // wheel locks: 50 ms without a tooth -> at most 60 rpm
+    ok = ok && wheel.rpm < 60.5f;
+
     update_wheel(&wheel, t + STOP_TIMEOUT_US + 100u);
     ok = ok && wheel.rpm == 0.0f;
 
@@ -161,6 +173,8 @@ uint8_t wheel_speed_self_check(void) {
     }
     update_wheel(&slow_wheel, slow_time + 100u);
     uint8_t reads_5_rpm = slow_wheel.rpm > 4.9f && slow_wheel.rpm < 5.1f;
+    update_wheel(&slow_wheel, slow_time + 600000u);     // a whole tooth period later: 5 RPM still holds
+    reads_5_rpm = reads_5_rpm && slow_wheel.rpm > 4.9f;
     update_wheel(&slow_wheel, slow_time + STOP_TIMEOUT_US + 1u);
     return ok && reads_5_rpm && slow_wheel.rpm == 0.0f;
 }
