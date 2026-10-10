@@ -1,0 +1,9 @@
+../Core/Src/wheel_speed.c:37:17:timestamp_from_capture	24	static
+../Core/Src/wheel_speed.c:50:17:timestamp_now	16	static
+../Core/Src/wheel_speed.c:63:13:process_edge	24	static
+../Core/Src/wheel_speed.c:95:13:update_wheel	24	static
+../Core/Src/wheel_speed.c:123:6:wheel_speed_start	8	static
+../Core/Src/wheel_speed.c:129:6:wheel_speed_capture	24	static
+../Core/Src/wheel_speed.c:136:6:wheel_speed_timer_overflow	4	static
+../Core/Src/wheel_speed.c:140:6:wheel_speed_update	16	static
+../Core/Src/wheel_speed.c:148:9:wheel_speed_self_check	96	static

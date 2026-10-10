@@ -49,26 +49,15 @@ extern "C" {
 #include <stddef.h>
 
 /* DBC file integrity. */
-<<<<<<< HEAD
-<<<<<<< Updated upstream
 #define DATA_T26_DBC_SHA256 0xb8e3c7d7d5293cacULL
-=======
-#define DATA_T26_DBC_SHA256 0x824fd7edea028062ULL
->>>>>>> Stashed changes
-=======
-#define DATA_T26_DBC_SHA256 0x92ac738d7590d2b6ULL
->>>>>>> origin/main
 
 #ifndef EINVAL
 #    define EINVAL 22
 #endif
 
 /* Frame ids. */
-<<<<<<< Updated upstream
 #define DATA_T26_AQT2_FRAME_ID (0x30u)
-=======
-#define DATA_T26_AQT2_FRAME_ID (0x22u)
->>>>>>> Stashed changes
+
 #define DATA_T26_AQT2_TEMPERATURES_1_FRAME_ID (0x781u)
 #define DATA_T26_AQT2_TEMPERATURES_2_FRAME_ID (0x782u)
 #define DATA_T26_AQT2_TEMPERATURES_3_FRAME_ID (0x783u)

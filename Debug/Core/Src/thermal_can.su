@@ -1,1 +1,1 @@
-../Core/Src/thermal_can.c:20:6:thermal_can_task	56	static
+../Core/Src/thermal_can.c:20:6:thermal_can_task	64	static,ignoring_inline_asm
