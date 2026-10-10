@@ -18,7 +18,8 @@ C_SRCS += \
 ../Core/Src/system_stm32f4xx.c \
 ../Core/Src/thermal_can.c \
 ../Core/Src/tim.c \
-../Core/Src/usart.c 
+../Core/Src/usart.c \
+../Core/Src/wheel_speed.c 
 
 OBJS += \
 ./Core/Src/can.o \
@@ -34,7 +35,8 @@ OBJS += \
 ./Core/Src/system_stm32f4xx.o \
 ./Core/Src/thermal_can.o \
 ./Core/Src/tim.o \
-./Core/Src/usart.o 
+./Core/Src/usart.o \
+./Core/Src/wheel_speed.o 
 
 C_DEPS += \
 ./Core/Src/can.d \
@@ -50,7 +52,8 @@ C_DEPS += \
 ./Core/Src/system_stm32f4xx.d \
 ./Core/Src/thermal_can.d \
 ./Core/Src/tim.d \
-./Core/Src/usart.d 
+./Core/Src/usart.d \
+./Core/Src/wheel_speed.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes

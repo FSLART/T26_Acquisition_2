@@ -15,6 +15,7 @@
 "./Core/Src/thermal_can.o"
 "./Core/Src/tim.o"
 "./Core/Src/usart.o"
+"./Core/Src/wheel_speed.o"
 "./Core/Startup/startup_stm32f412retx.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal.o"
 "./Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_can.o"
