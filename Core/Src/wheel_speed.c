@@ -20,7 +20,7 @@
 
 #define TEETH_PER_REVOLUTION    20.0f
 #define MICROSECONDS_PER_MINUTE 60000000.0f
-#define MAXIMUM_RPM             3000.0f     // above this an edge can only be noise
+#define MAXIMUM_RPM             1800.0f     // above this an edge can only be noise: 20000 motor rpm / 14.73 = 1358 wheel rpm, +30 %
 #define MINIMUM_RPM             5.0f        // target minimum measurable wheel speed
 #define MINIMUM_PERIOD_US       ((uint32_t)(MICROSECONDS_PER_MINUTE / (TEETH_PER_REVOLUTION * MAXIMUM_RPM)))
 #define STOP_TIMEOUT_MULTIPLIER 2.5f
